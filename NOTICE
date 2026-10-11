@@ -1,0 +1,8 @@
+This is an independent community CLI, not an official Masky product.
+
+internal/spec/openapi.json is an unmodified reference snapshot of Masky's
+public API contract retrieved from https://masky.ai/api/docs/masky-openapi.json
+on 2026-10-12 (API version 1.2.0). It is attributed to Masky and is not claimed
+as original work under this project's MIT license. Command metadata and
+validation supplements derived from https://masky.ai/api/docs live in spec.go.
+Masky names and trademarks belong to their respective owners.

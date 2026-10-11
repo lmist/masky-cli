@@ -1,0 +1,2076 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Masky Developer API",
+    "version": "1.2.0",
+    "description": "Full Masky HTTP API: images, avatars, conversations, talking-head video, and Login with Masky (OAuth 2.0 SSO). Human docs at https://masky.ai/api/docs"
+  },
+  "servers": [
+    {
+      "url": "https://masky.ai/api"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Either a Masky API key (mky_...) or a Firebase ID token."
+      }
+    },
+    "schemas": {
+      "Avatar": {
+        "type": "object",
+        "properties": {
+          "avatarOwnerUserId": {
+            "type": "string"
+          },
+          "avatarOwnerDisplayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarOwnerTwitchUsername": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "personalityPrompt": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "publiclyRenderable": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "integer",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "Turn": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "avatar"
+            ]
+          },
+          "userText": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarText": {
+            "type": "string",
+            "nullable": true
+          },
+          "output": {
+            "type": "string",
+            "enum": [
+              "audio",
+              "video"
+            ],
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true,
+            "description": "pending | audio | video | error"
+          },
+          "audioUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "videoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "shareSlug": {
+            "type": "string",
+            "nullable": true
+          },
+          "shareUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api-keys": {
+      "post": {
+        "summary": "Create a new API key",
+        "description": "Returns the raw mky_ token ONCE. Store it; the server keeps only a hash.",
+        "x-masky-auth-mode": "firebase-only",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Firebase sign-in required"
+          }
+        }
+      },
+      "get": {
+        "summary": "List the caller's API keys (no raw tokens)",
+        "x-masky-auth-mode": "firebase-only",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api-keys/{id}": {
+      "delete": {
+        "summary": "Revoke an API key",
+        "x-masky-auth-mode": "firebase-only",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/avatars": {
+      "get": {
+        "summary": "List the caller's avatars",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "avatars": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Avatar"
+                      }
+                    },
+                    "owner": {
+                      "type": "object",
+                      "description": "The caller's account, for building masky.ai/{slug} links (slug = username || twitchUsername || userId). Present even when the account has no avatars.",
+                      "properties": {
+                        "userId": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "twitchUsername": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new avatar",
+        "description": "imageUrl, if supplied, is fetched and re-hosted on Masky's storage. Without a voiceId the avatar is text-only; upload voice samples via masky.ai to enable audio/video.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "displayName"
+                ],
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "imageUrl": {
+                    "type": "string",
+                    "description": "Public URL; server fetches + stores."
+                  },
+                  "personalityPrompt": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "voiceId": {
+                    "type": "string"
+                  },
+                  "knowledgeBaseUrls": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 10
+                  },
+                  "publiclyRenderable": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "avatar": {
+                      "$ref": "#/components/schemas/Avatar"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid imageUrl"
+          }
+        }
+      }
+    },
+    "/avatars/public": {
+      "get": {
+        "summary": "List publicly renderable avatars across all users",
+        "description": "No auth required. Returned avatars can be rendered by any caller; the owner pays the generation credits.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/avatars/lookup": {
+      "get": {
+        "summary": "Look up a user's renderable avatars by uid, handle, or Twitch username",
+        "description": "Requires any valid bearer token. Resolves the identifier like public pages do (uid -> Masky handle -> Twitch username, case-insensitive) and returns the user's self-avatar, avatars marked publiclyRenderable, and their chosen stream-identity avatar (even when private - choosing it is consent), with the owner block and a top-level streamIdentity {avatarId, imageUrl|null} when one is set. The stream-identity avatar carries isStreamDefault: true (plus streamImageUrl when a specific still was chosen); overlays should prefer it, pass streamImageUrl as avatarImageUrl on speak, and retry without the image override on a 400 (stale still). Built for read-the-viewer's-own-message flows: pass the returned avatarOwnerUserId + avatarId to POST /avatars/{avatarId}/speak (charged to the caller). An avatar is voice-capable when voiceId is non-null. An unknown identifier returns 200 {\"found\": false}.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "uid, Masky handle, or Twitch username"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{found, owner?, streamIdentity?, avatars?} - avatars use the same shape as GET /avatars, plus isDefaultAvatar and isStreamDefault"
+          }
+        }
+      }
+    },
+    "/avatars/stream-identity": {
+      "get": {
+        "summary": "Get the caller's stream identity (avatar + still used when overlays read their messages)",
+        "description": "Returns {streamIdentity: null} until one is set or when the chosen avatar was deleted; otherwise {streamIdentity: {avatarId, imageUrl|null, displayName, voiceId, updatedAt}}. voiceId null means the choice cannot speak yet and overlays will fall back. OAuth tokens need the 'avatars:read' or 'generate' scope.",
+        "responses": {
+          "200": {
+            "description": "{streamIdentity}"
+          }
+        }
+      },
+      "put": {
+        "summary": "Set or clear the caller's stream identity",
+        "description": "Body {avatarId, imageUrl?}. The avatar must be the caller's own; imageUrl, when given, must be one of that avatar's stills (GET /avatars/{avatarId}/images lists valid values) - otherwise 400. avatarId null/empty clears the setting. Note: choosing a private avatar exposes it via GET /avatars/lookup - that is the feature. When the caller has a connected Twitch login, the choice is also mirrored to the world-readable Firestore doc streamIdentities/{twitchLogin} ({userId, avatarId, imageUrl|null, avatarImageUrl, displayName, ownerDisplayName, voiceId, updatedAt}) so overlays can render chat identities with one unauthenticated Firestore read; clearing (or re-setting after a Twitch rename) removes the stale mirror doc. OAuth tokens need the 'generate' scope.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "avatarId"
+                ],
+                "properties": {
+                  "avatarId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "One of the caller's avatar ids; null/empty clears"
+                  },
+                  "imageUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Optional still from GET /avatars/{avatarId}/images; omitted means the avatar's primary image at render time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{streamIdentity} as stored"
+          },
+          "400": {
+            "description": "imageUrl not one of the avatar's images"
+          },
+          "404": {
+            "description": "avatarId is not one of the caller's avatars"
+          }
+        }
+      }
+    },
+    "/avatars/{avatarId}/public": {
+      "post": {
+        "summary": "Toggle publiclyRenderable on an avatar you own",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "avatarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "publiclyRenderable"
+                ],
+                "properties": {
+                  "publiclyRenderable": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not yours"
+          }
+        }
+      }
+    },
+    "/voices": {
+      "get": {
+        "summary": "List voices available to the caller",
+        "description": "Curated preset voices plus any custom voices already attached to avatars the caller owns. Use the returned id with /avatars/{id}/voice or pass it as voiceId on create_avatar.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "voices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "preset",
+                              "custom"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/avatars/{avatarId}/train": {
+      "post": {
+        "summary": "Build a Masky Gem for the avatar (personality + knowledge base)",
+        "description": "Forwards the avatar's personalityPrompt + knowledgeBaseUrls to the Masky Gems microservice. Persists the returned gemRef on the avatar so future chat/turn calls reuse it instead of re-fetching URLs each turn. Gemini's app-product 'Gems' has no public API; this is our equivalent.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "avatarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trained or queued"
+          },
+          "404": {
+            "description": "Not yours"
+          },
+          "502": {
+            "description": "Microservice error"
+          }
+        }
+      }
+    },
+    "/avatars/{avatarId}/voice": {
+      "post": {
+        "summary": "Attach a voice to an avatar you own",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "avatarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "voiceId"
+                ],
+                "properties": {
+                  "voiceId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not yours"
+          }
+        }
+      }
+    },
+    "/conversations": {
+      "post": {
+        "summary": "Start a new conversation with an avatar",
+        "description": "Returns conversationId, the shareUrl (interactive page), and a liveUrl with embedded viewerToken for OBS / web embeds.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "avatarOwnerUserId",
+                  "avatarId"
+                ],
+                "properties": {
+                  "avatarOwnerUserId": {
+                    "type": "string"
+                  },
+                  "avatarId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversationId": {
+                      "type": "string"
+                    },
+                    "shareSlug": {
+                      "type": "string"
+                    },
+                    "shareUrl": {
+                      "type": "string"
+                    },
+                    "viewerToken": {
+                      "type": "string"
+                    },
+                    "liveUrl": {
+                      "type": "string",
+                      "description": "https://masky.ai/live/{slug}?token={viewerToken} — embed in OBS / web."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Avatar not yours and not publiclyRenderable"
+          }
+        }
+      }
+    },
+    "/conversations/{conversationId}/turn": {
+      "post": {
+        "summary": "Inject a user turn into a conversation",
+        "description": "Asynchronous — returns a pending Turn id; subscribe to /liveTurns/{viewerToken}/turns or poll to watch status flip to audio then video.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userText"
+                ],
+                "properties": {
+                  "userText": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "output": {
+                    "type": "string",
+                    "enum": [
+                      "audio",
+                      "video"
+                    ],
+                    "default": "audio"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "chat",
+                      "speak"
+                    ],
+                    "default": "chat",
+                    "description": "chat = Gemini answers using personality + history. speak = userText is spoken by the avatar (skips Gemini)."
+                  },
+                  "reinterpret": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Only used when mode=speak. true rewrites userText via Gemini in the avatar's voice before TTS."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted; turn is generating",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "turn": {
+                      "$ref": "#/components/schemas/Turn"
+                    },
+                    "firestorePath": {
+                      "type": "string"
+                    },
+                    "async": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Not enough credits"
+          }
+        }
+      }
+    },
+    "/conversations/{conversationId}/visibility": {
+      "post": {
+        "summary": "Toggle conversation public/private",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "isPublic"
+                ],
+                "properties": {
+                  "isPublic": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/conversations/by-slug/{slug}": {
+      "get": {
+        "summary": "Fetch conversation metadata and full turn list",
+        "description": "Public conversations are readable without auth. Private conversations require the owner's bearer token.",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^c-\\d{2}-\\d{2}-[a-z0-9]{4}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Private and viewer is not the owner"
+          },
+          "404": {
+            "description": "Unknown slug"
+          }
+        }
+      }
+    },
+    "/avatars/{avatarId}/speak": {
+      "post": {
+        "summary": "One-shot avatar TTS / talking-head video",
+        "description": "Use this when you need a single audio or video clip without a chat thread.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "avatarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "textMode": {
+                    "type": "string",
+                    "enum": [
+                      "literal",
+                      "personality"
+                    ],
+                    "default": "literal"
+                  },
+                  "output": {
+                    "type": "string",
+                    "enum": [
+                      "audio",
+                      "video"
+                    ],
+                    "default": "audio"
+                  },
+                  "avatarOwnerUserId": {
+                    "type": "string"
+                  },
+                  "avatarImageUrl": {
+                    "type": "string",
+                    "description": "Optional still to render with — must be a url from GET /avatars/{avatarId}/images (400 otherwise). Default: the avatar's primary image."
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "Optional BCP-47-ish code (e.g. \"es\", \"pt-br\") declaring the language of `text`. The voice speaks whatever language the text is in — send text already in the target language; with textMode=personality the rewrite is produced in this language."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reused or inline complete"
+          },
+          "202": {
+            "description": "Job accepted; poll"
+          }
+        }
+      }
+    },
+    "/avatars/speak/{generationId}": {
+      "get": {
+        "summary": "Get one-shot generation status + signed URLs",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "generationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/images/generate": {
+      "post": {
+        "summary": "Generate an image from text. Sync. Needs 'generate' scope for SSO tokens.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "prompt"
+                ],
+                "properties": {
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "ideogram"
+                    ],
+                    "description": "'ideogram' renders legible in-image text/typography at 3x the credit cost; 'default' garbles text. If omitted, prompts containing double-quoted text auto-route to 'ideogram' so the quoted words appear verbatim, and unquoted prompts that clearly intend readable words are detected by a reasoning pass and routed the same way; pass a model explicitly to pin it."
+                  },
+                  "aspectRatio": {
+                    "type": "string",
+                    "enum": [
+                      "1:1",
+                      "16:9",
+                      "9:16",
+                      "4:3",
+                      "3:4",
+                      "3:2",
+                      "2:3"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ imageUrl, aspectRatio, creditCost }"
+          },
+          "402": {
+            "description": "Insufficient credits"
+          },
+          "403": {
+            "description": "Token lacks 'generate' scope"
+          }
+        }
+      }
+    },
+    "/images/edit": {
+      "post": {
+        "summary": "Edit/compose from 1-5 reference images. Needs 'generate' scope for SSO tokens.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "prompt"
+                ],
+                "properties": {
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "imageUrl": {
+                    "type": "string"
+                  },
+                  "images": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "aspectRatio": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "qwen"
+                    ],
+                    "description": "default (0.01 credits) or qwen (0.03 credits, renders legible in-image text; max 2 reference images). Omitted: prompts with \"double-quoted\" text auto-route to qwen when 1-2 references are given, and unquoted prompts that clearly intend readable words are detected and routed the same way."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ imageUrl, aspectRatio, model, creditCost }"
+          },
+          "402": {
+            "description": "Insufficient credits"
+          },
+          "403": {
+            "description": "Token lacks 'generate' scope"
+          }
+        }
+      }
+    },
+    "/oauth/clients": {
+      "post": {
+        "summary": "Register a Login-with-Masky client. First-party mky_ key only.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "redirectDomains"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "redirectDomains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "profile",
+                        "avatars:read",
+                        "generate"
+                      ]
+                    }
+                  },
+                  "serviceAvatarId": {
+                    "type": "string",
+                    "description": "Optional: one of your avatar ids. Enables grant_type=client_credentials — the app acts as this avatar."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ clientId, clientSecret (shown once), name, redirectDomains, scopes }"
+          }
+        }
+      },
+      "get": {
+        "summary": "List your registered SSO clients.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ apps: [...] }"
+          }
+        }
+      }
+    },
+    "/oauth/clients/{clientId}": {
+      "delete": {
+        "summary": "Delete an SSO client.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Set or clear the client's service avatar (owner only). Enables grant_type=client_credentials: the app acts as this avatar. Send {\"serviceAvatarId\": \"<avatarId>\"} or {\"serviceAvatarId\": null}.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "serviceAvatarId"
+                ],
+                "properties": {
+                  "serviceAvatarId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "One of the owner's avatar ids, or null to disable client_credentials."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ ok, clientId, serviceAvatarId }"
+          },
+          "400": {
+            "description": "serviceAvatarId must be one of your avatars"
+          },
+          "401": {
+            "description": "Sign in required"
+          },
+          "404": {
+            "description": "App not found"
+          }
+        }
+      }
+    },
+    "/oauth/token": {
+      "post": {
+        "summary": "Exchange an authorization code for a scoped mky_ access token, or use grant_type=client_credentials to act as the client's service avatar (no user, no consent). No auth (client_secret or PKCE in body).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grant_type",
+                  "client_id"
+                ],
+                "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "enum": [
+                      "authorization_code",
+                      "client_credentials"
+                    ]
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "client_secret": {
+                    "type": "string"
+                  },
+                  "code_verifier": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "description": "client_credentials only: space-separated scopes to request (subset of the client's scopes; defaults to all)."
+                  }
+                },
+                "description": "authorization_code requires code + redirect_uri (+ client_secret or code_verifier). client_credentials requires client_secret and a serviceAvatarId configured on the client; the token acts AS that avatar and bills the client owner. Tokens are long-lived — request once and store."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ access_token, token_type, scope, avatar }"
+          },
+          "400": {
+            "description": "invalid_grant / unsupported_grant_type"
+          },
+          "401": {
+            "description": "invalid_client"
+          }
+        }
+      }
+    },
+    "/oauth/userinfo": {
+      "get": {
+        "summary": "Avatar identity for an SSO access token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ sub, name, picture, avatar_id, scope }"
+          },
+          "401": {
+            "description": "invalid_token"
+          }
+        }
+      }
+    },
+    "/oauth/grants": {
+      "get": {
+        "summary": "List apps a user has authorized (connected apps). First-party key.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ grants: [...] }"
+          }
+        }
+      }
+    },
+    "/oauth/grants/{tokenId}": {
+      "delete": {
+        "summary": "Revoke one issued SSO access token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tokenId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/videos/generate": {
+      "post": {
+        "summary": "Generate a video from a prompt — text-to-video, or image-to-video from any public image or one of your avatars' stills — with generated sound, a line in your avatar's voice, or your own audio. Not lip-synced (use a speak turn for talking to camera). Async: returns 202, then poll GET /videos/{generationId}. Every render gets a /v-yy-mm-xxxx share page. Billed per second of the finished video, once, on success (rates: GET /videos/pricing). Needs 'generate' scope for SSO tokens.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "prompt"
+                ],
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "The video to generate — and, without speechText/audio, what it sounds like (effects, ambience, music)"
+                  },
+                  "avatarId": {
+                    "type": "string",
+                    "description": "One of your avatars (404 otherwise). With image omitted the clip opens on its primary still. Required for speechText"
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "uri",
+                    "nullable": true,
+                    "description": "Opening frame: any public http(s) jpg/png/webp URL. Omit to use the avatar's still when avatarId is set; null forces pure text-to-video"
+                  },
+                  "lastFrameImage": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Closing frame: any public http(s) image URL"
+                  },
+                  "speechText": {
+                    "type": "string",
+                    "maxLength": 300,
+                    "description": "Spoken in the avatar's voice (needs avatarId with a voice) and used as the audio input; its length sets the clip length. Not lip-synced. Mutually exclusive with audio"
+                  },
+                  "audio": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Public flac/mp3/wav URL used as the audio input; its length sets the clip length. Mutually exclusive with speechText"
+                  },
+                  "duration": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "description": "Seconds. Omit to let the model choose. Ignored when speechText or audio is set"
+                  },
+                  "resolution": {
+                    "type": "string",
+                    "enum": [
+                      "720p",
+                      "1080p"
+                    ],
+                    "default": "720p"
+                  },
+                  "fps": {
+                    "type": "integer",
+                    "enum": [
+                      24,
+                      48
+                    ],
+                    "default": 24
+                  },
+                  "aspectRatio": {
+                    "type": "string",
+                    "enum": [
+                      "16:9",
+                      "9:16",
+                      "4:3",
+                      "3:4",
+                      "3:2",
+                      "2:3",
+                      "1:1"
+                    ],
+                    "default": "16:9",
+                    "description": "Ignored when an image is used"
+                  },
+                  "seed": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "draft": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Lower quality, cheaper per second"
+                  },
+                  "saveAudio": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "false renders a silent clip"
+                  },
+                  "promptUpsampling": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Let the model expand the prompt; false uses it verbatim"
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "private",
+                      "public"
+                    ],
+                    "default": "private",
+                    "description": "Share page visibility"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "{ generationId, slug, url, status:'queued', seconds, creditCost, firestorePath, poll } — seconds/creditCost are a quote (20s upper bound when the model picks the length)"
+          },
+          "400": {
+            "description": "Invalid or missing field, speechText without a voiced avatarId, speechText together with audio, or a field from the retired video API"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Not enough credits — { requiredCredits, availableCredits }"
+          },
+          "403": {
+            "description": "Token lacks 'generate' scope"
+          },
+          "404": {
+            "description": "Avatar not found"
+          }
+        }
+      }
+    },
+    "/videos/{generationId}": {
+      "get": {
+        "summary": "Poll a video job: status queued|rendering|ready|error. videoUrl is set once ready, and seconds/creditCost become the billed values. Finalizes a finished render if the background job died.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "generationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ generationId, slug, url, status, videoUrl, seconds, creditCost, error? }"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/tribes/{user}": {
+      "get": {
+        "summary": "Tribe info + whether the caller is a member. Needs 'tribes' scope for SSO tokens.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Masky uid or twitchUsername of the tribe owner"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ user, tribeName, joinCost, memberCount, isMember, isOwner }"
+          },
+          "403": {
+            "description": "Token lacks 'tribes' scope"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/tribes/{user}/membership": {
+      "get": {
+        "summary": "Is ?member= in {user}'s tribe? Caller must be the tribe owner or the member (defaults to caller). Needs 'tribes' scope for SSO tokens.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Masky uid or twitchUsername of the tribe owner"
+          },
+          {
+            "name": "member",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "uid or twitchUsername; defaults to the caller"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ tribeOwner, member, joinedAt }"
+          },
+          "403": {
+            "description": "Caller is neither the tribe owner nor the queried member, or token lacks 'tribes' scope"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/tribes/{user}/join": {
+      "post": {
+        "summary": "Join {user}'s tribe, paying their tribeJoinCost in the caller's credits (free for the creator's active Twitch subscribers). Needs 'tribes' scope for SSO tokens.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Masky uid or twitchUsername of the tribe owner"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ success, isSubscriber, charged }"
+          },
+          "400": {
+            "description": "Already a member / own tribe / { error: 'Insufficient balance', balance, required }"
+          },
+          "403": {
+            "description": "Token lacks 'tribes' scope"
+          },
+          "404": {
+            "description": "Creator not found"
+          }
+        }
+      }
+    },
+    "/donations/intents": {
+      "post": {
+        "summary": "Propose a user-to-user credit gift. Moves nothing: the user must confirm at the returned confirmUrl (masky.ai) with their first-party session. Intents expire after 10 minutes. Needs 'donations' scope for SSO tokens.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "to",
+                  "amount"
+                ],
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "description": "Recipient uid or twitchUsername"
+                  },
+                  "amount": {
+                    "type": "number",
+                    "description": "Credits (1 credit = $1), 0.01-1000"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ intentId, status:'pending', amount, to, from, note, createdAt, expiresAt, confirmUrl }"
+          },
+          "400": {
+            "description": "Bad amount / self-gift / { error: 'Insufficient transferable credits', transferable, required }"
+          },
+          "403": {
+            "description": "Token lacks 'donations' scope"
+          },
+          "404": {
+            "description": "Recipient not found"
+          }
+        }
+      }
+    },
+    "/donations/intents/{intentId}": {
+      "get": {
+        "summary": "Gift intent status (poll after opening confirmUrl). Caller must be the sender; SSO tokens must be from the proposing app.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "intentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Intent id from POST /donations/intents"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ intentId, status: pending|confirmed|cancelled|expired, ... }"
+          },
+          "403": {
+            "description": "Not your intent / different app"
+          },
+          "404": {
+            "description": "Intent not found"
+          }
+        }
+      }
+    },
+    "/donations/intents/{intentId}/confirm": {
+      "post": {
+        "summary": "EXECUTE the gift. First-party Firebase session only — OAuth/mky_ tokens are always rejected; called by masky.ai's donate-confirm page, not by apps.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "intentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Intent id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ intentId, status:'confirmed', ... } — credits moved"
+          },
+          "400": {
+            "description": "{ error: 'Insufficient transferable credits', transferable, required }"
+          },
+          "403": {
+            "description": "Delegated token, or not the sender"
+          },
+          "409": {
+            "description": "Intent already resolved"
+          },
+          "410": {
+            "description": "Intent expired"
+          }
+        }
+      }
+    },
+    "/donations/intents/{intentId}/cancel": {
+      "post": {
+        "summary": "Cancel a pending gift intent (sender or proposing app).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "intentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Intent id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ intentId, status:'cancelled' | prior terminal status }"
+          },
+          "403": {
+            "description": "Not your intent / different app"
+          },
+          "404": {
+            "description": "Intent not found"
+          }
+        }
+      }
+    },
+    "/donations/sent": {
+      "get": {
+        "summary": "Confirmed credit gifts the caller has sent to ?to= (totals + history). Needs 'donations' scope for SSO tokens.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Recipient uid or twitchUsername"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ to, total, count, gifts: [{ amount, note, createdAt }] }"
+          },
+          "403": {
+            "description": "Token lacks 'donations' scope"
+          },
+          "404": {
+            "description": "Recipient not found"
+          }
+        }
+      }
+    },
+    "/avatars/{avatarId}/images": {
+      "get": {
+        "summary": "List the avatar's still-image variants (primary + assets). Any returned url is a valid avatarImageUrl for /avatars/{avatarId}/speak or /conversations/{conversationId}/avatar-image. Own avatars always; others only when publiclyRenderable. SSO tokens need 'avatars:read' or 'generate'.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "avatarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "avatarOwnerUserId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Owner uid when listing someone else's publicly renderable avatar; defaults to the caller"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ avatarId, avatarOwnerUserId, primary, images: [{ url, assetId, isPrimary, createdAt }] }"
+          },
+          "403": {
+            "description": "Avatar not publicly renderable / token lacks 'avatars:read' or 'generate' scope"
+          },
+          "404": {
+            "description": "Avatar not found"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a still-image variant to one of your avatars (owner only). Masky fetches imageUrl, stores it, and records it as an asset; the primary image is unchanged. The returned url is valid as imageUrl on /videos/video-2 and avatarImageUrl on /avatars/{avatarId}/speak. SSO tokens need 'generate'.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "avatarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "imageUrl"
+                ],
+                "properties": {
+                  "imageUrl": {
+                    "type": "string",
+                    "description": "Public http(s) URL of an image (image/* content-type, max 12MB)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ avatarId, assetId, url } - url is the stored Firebase Storage URL"
+          },
+          "400": {
+            "description": "imageUrl missing / not http(s) / could not be fetched as an image (max 12MB)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Token lacks 'generate' scope"
+          },
+          "404": {
+            "description": "Avatar not found (you must be the owner)"
+          }
+        }
+      }
+    },
+    "/conversations/{conversationId}/avatar-image": {
+      "post": {
+        "summary": "Switch the still image the conversation renders video turns with (owner only). Must be a url from GET /avatars/{avatarId}/images for the conversation's avatar.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "avatarImageUrl"
+                ],
+                "properties": {
+                  "avatarImageUrl": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ ok, avatarImageUrl }"
+          },
+          "400": {
+            "description": "avatarImageUrl missing or not an asset of this avatar"
+          },
+          "403": {
+            "description": "Not your conversation"
+          },
+          "404": {
+            "description": "Conversation not found"
+          }
+        }
+      }
+    },
+    "/videos/pricing": {
+      "get": {
+        "summary": "Per-second credit rates for POST /videos/generate by resolution and draft mode, plus valid resolutions, aspect ratios and fps (no auth).",
+        "responses": {
+          "200": {
+            "description": "{ endpoint, currency, billing, perSecond, audioPerSecond, defaultResolution, minSeconds, maxSeconds, defaultSeconds, charsPerSpokenSecond, resolutions, aspectRatios, fps }"
+          }
+        }
+      }
+    },
+    "/conversations/{conversationId}/turns/{turnId}/agent-complete": {
+      "post": {
+        "summary": "Local-agent bridge: deliver the reply text for a turn awaiting an external agent",
+        "description": "Completes a turn the worker parked in status awaiting_agent because the avatar has an agentBinding (a nostr pubkey + relay on the avatar doc). Auth is NIP-98 style: an Authorization: Nostr <base64 kind-27235 event> header signed by the BOUND nostr key, with tags ['u', full URL], ['method','POST'], ['payload', sha256 hex of the raw body]. No Masky bearer token is used - the pubkey is the identity. TTS/video render then proceeds as a normal turn.",
+        "tags": [
+          "conversations"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "turnId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Nostr <base64-encoded kind-27235 event>"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 4000,
+                    "description": "The avatar reply text the local agent produced"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reply accepted; the render pipeline resumes"
+          },
+          "400": {
+            "description": "Invalid ids or body"
+          },
+          "401": {
+            "description": "Missing/invalid Nostr auth event (signature, url, method, payload hash, or created_at window)"
+          },
+          "403": {
+            "description": "Signer is not the pubkey bound to this turn"
+          },
+          "409": {
+            "description": "Turn is not awaiting an agent (already completed, rendered, or errored)"
+          },
+          "410": {
+            "description": "Turn request expired; the worker has moved on to the fallback"
+          }
+        }
+      }
+    },
+    "/avatars/{avatarId}/agent-binding/test": {
+      "post": {
+        "summary": "Local-agent bridge: publish a test ping through the avatar's agentBinding relay",
+        "description": "Owner-only. Publishes a signed masky_binding_ping nostr event through the exact turn-request path (same signing key, same relay AUTH handling) so the binding can be verified before a real turn depends on it. Body may carry {binding: {...}} to test unsaved values; otherwise the avatar doc's saved agentBinding is used (a parked enabled:false binding is still testable). Returns the bridge's sender pubkey so the harness can pin it.",
+        "tags": [
+          "avatars"
+        ],
+        "parameters": [
+          {
+            "name": "avatarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "binding": {
+                    "type": "object",
+                    "description": "Binding to test instead of the saved one",
+                    "properties": {
+                      "pubkey": {
+                        "type": "string",
+                        "description": "64-char hex nostr pubkey of the agent"
+                      },
+                      "relay": {
+                        "type": "string",
+                        "description": "wss:// relay URL"
+                      },
+                      "kind": {
+                        "type": "integer",
+                        "description": "Event kind for the ping (default 9391)"
+                      },
+                      "extraTags": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "description": "Extra nostr tags for the event and the NIP-42 AUTH handshake"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Relay accepted the ping: { ok, eventId, serverPubkey, relay, kind }"
+          },
+          "400": {
+            "description": "No valid agentBinding to test"
+          },
+          "401": {
+            "description": "Missing/invalid Firebase bearer token"
+          },
+          "403": {
+            "description": "Caller is not the avatar owner"
+          },
+          "404": {
+            "description": "Avatar not found"
+          },
+          "502": {
+            "description": "Relay rejected or timed out: { ok:false, error, serverPubkey }"
+          }
+        }
+      }
+    }
+  }
+}

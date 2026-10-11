@@ -1,0 +1,11 @@
+/bin/
+/dist/
+/coverage.out
+*.test
+.env
+.env.*
+!.env.example
+*.key
+credentials.json
+config.json
+.DS_Store
